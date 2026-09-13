@@ -1,0 +1,15 @@
+# build outputs
+/output/
+/build/
+*.img
+*.img.xz
+*.raw
+*.qcow2
+*.rpm
+/sbom*.json
+/serial.log
+# editors / tooling
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
