@@ -10,7 +10,7 @@ ARG BUILDER_IMAGE=quay.io/fedora/fedora:44
 
 # ---------------------------------------------------------------------------
 FROM ${BUILDER_IMAGE} AS rpmbuild
-RUN dnf -y install rpm-build make && dnf clean all
+RUN dnf -y install rpm-build make tar systemd-rpm-macros && dnf clean all
 COPY VERSION /src/VERSION
 COPY components/ /src/components/
 COPY packaging/ /src/packaging/
