@@ -30,7 +30,7 @@ for vfile in "$src"/components/*/VERSION; do
   echo "build-rpms: $name $version ($spec)"
   tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
       --transform "s,^${name}/,${name}-${version}/," \
-      --exclude='*.o' --exclude='run-tests' --exclude="${name}/${name}" \
+      --exclude='*.o' --exclude='run-tests' \
       -C "$src/components" -czf "$top/SOURCES/${name}-${version}.tar.gz" "$name"
   rpmbuild --define "_topdir $top" --define "tacet_version $version" \
            --define "source_date_epoch_from_changelog 0" \
