@@ -1,0 +1,33 @@
+#!/bin/bash
+# tacet-boot-report: one line on the serial console for the QEMU boot test.
+#
+# Only runs in a VM (ConditionVirtualization=vm in the unit). Waits for
+# tacet-session to become active, probes tacet-cec if installed, and prints
+#   TACET-BOOT-REPORT session=<state> cec=<ok|fail|absent> version=<v>
+# to /dev/ttyS0 (captured by QEMU) and the journal. ci/boot-test.sh parses it.
+set -uo pipefail
+
+WAIT_SECONDS=${TACET_BOOT_REPORT_WAIT:-90}
+SERIAL=${TACET_BOOT_REPORT_SERIAL:-/dev/ttyS0}
+
+session=unknown
+for ((i = 0; i < WAIT_SECONDS; i++)); do
+  session=$(systemctl is-active tacet-session.service 2>/dev/null || true)
+  [ "$session" = active ] && break
+  sleep 1
+done
+
+if command -v tacet-cec >/dev/null 2>&1; then
+  if tacet-cec --list-adapters >/dev/null 2>&1; then cec=ok; else cec=fail; fi
+else
+  cec=absent
+fi
+
+version=$(tr -d '[:space:]' < /usr/share/tacet/VERSION 2>/dev/null || echo unknown)
+line="TACET-BOOT-REPORT session=$session cec=$cec version=$version"
+
+echo "$line"
+if [ -w "$SERIAL" ]; then
+  echo "$line" > "$SERIAL"
+fi
+[ "$session" = active ] && [ "$cec" != fail ]

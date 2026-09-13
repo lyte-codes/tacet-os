@@ -1,0 +1,36 @@
+[Unit]
+Description=Tacet TV session (gamescope + shell)
+Documentation=file:///usr/share/doc/tacet-session/README.md
+# DECISION: a system unit with PAMName= instead of the per-user unit in spec
+# §4.2. PAMName=login registers a logind seat session for `tv` on tty1, which
+# is what gamescope needs for DRM and input access. That gives "autologin"
+# without agetty, a shell profile, or a user manager, and lets the M2 health
+# check ask `systemctl is-active tacet-session` from system context.
+After=systemd-user-sessions.service systemd-logind.service plymouth-quit-wait.service getty@tty1.service
+Wants=systemd-user-sessions.service
+Conflicts=getty@tty1.service
+# An appliance never gives up on its screen; M2's health check handles loops.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/tacet/tacet-session
+Restart=always
+RestartSec=2
+User=tv
+Group=tv
+PAMName=login
+UtmpIdentifier=tty1
+UtmpMode=user
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_CURRENT_DESKTOP=tacet
+
+[Install]
+WantedBy=graphical.target

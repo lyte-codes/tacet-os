@@ -1,0 +1,146 @@
+#!/bin/bash
+# tacet-session: start gamescope on the seat with the configured shell inside.
+#
+# Runs as the `tv` user from tacet-session.service (which owns tty1 and logs
+# the user in through PAM). Crash restarts and HDMI hotplug handling are not
+# done here: systemd restarts this unit, and gamescope's DRM backend re-reads
+# connectors itself when a display appears or changes mode.
+#
+# Environment overrides (tests, debugging):
+#   TACET_SESSION_CONF      config path        (default /etc/tacet/session.conf)
+#   TACET_KODI_SEED_DIR     Kodi seed dir      (default /usr/share/tacet/kodi)
+#   TACET_SESSION_DRY_RUN=1 print the command instead of exec'ing it
+set -euo pipefail
+
+CONF=${TACET_SESSION_CONF:-/etc/tacet/session.conf}
+KODI_SEED_DIR=${TACET_KODI_SEED_DIR:-/usr/share/tacet/kodi}
+DRY_RUN=${TACET_SESSION_DRY_RUN:-0}
+
+SHELL_NAME=kodi
+SHELL_CMD=
+RESOLUTION=auto
+REFRESH=auto
+HDR=off
+GAMESCOPE_ARGS=
+
+log() { printf 'tacet-session: %s\n' "$*" >&2; }
+
+trim() {
+  local s=$1
+  s=${s#"${s%%[![:space:]]*}"}
+  s=${s%"${s##*[![:space:]]}"}
+  printf '%s' "$s"
+}
+
+read_config() {
+  if [ ! -r "$CONF" ]; then
+    log "no config at $CONF, using defaults"
+    return
+  fi
+  local line key value
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$(trim "$line")" in ''|'#'*) continue ;; esac
+    if [[ $line != *=* ]]; then
+      log "ignoring malformed line: $line"
+      continue
+    fi
+    key=$(trim "${line%%=*}")
+    value=$(trim "${line#*=}")
+    case "$key" in
+      SHELL)          SHELL_NAME=$value ;;
+      SHELL_CMD)      SHELL_CMD=$value ;;
+      RESOLUTION)     RESOLUTION=$value ;;
+      REFRESH)        REFRESH=$value ;;
+      HDR)            HDR=$value ;;
+      GAMESCOPE_ARGS) GAMESCOPE_ARGS=$value ;;
+      *)              log "ignoring unknown key '$key'" ;;
+    esac
+  done < "$CONF"
+}
+
+validate_config() {
+  case "$SHELL_NAME" in
+    kodi|mpv) ;;
+    custom)
+      if [ -z "$SHELL_CMD" ]; then
+        log "SHELL=custom but SHELL_CMD is empty, using kodi"
+        SHELL_NAME=kodi
+      fi ;;
+    *) log "invalid SHELL '$SHELL_NAME', using kodi"; SHELL_NAME=kodi ;;
+  esac
+  if [[ ! $RESOLUTION =~ ^(auto|[0-9]{3,5}x[0-9]{3,5})$ ]]; then
+    log "invalid RESOLUTION '$RESOLUTION', using auto"
+    RESOLUTION=auto
+  fi
+  if [[ ! $REFRESH =~ ^(auto|[0-9]{2,3})$ ]]; then
+    log "invalid REFRESH '$REFRESH', using auto"
+    REFRESH=auto
+  fi
+  case "$HDR" in
+    on|off) ;;
+    *) log "invalid HDR '$HDR', using off"; HDR=off ;;
+  esac
+}
+
+gamescope_args=()
+build_gamescope_args() {
+  gamescope_args=(-f)
+  if [ "$RESOLUTION" != auto ]; then
+    local w=${RESOLUTION%x*} h=${RESOLUTION#*x}
+    gamescope_args+=(-W "$w" -H "$h" -w "$w" -h "$h")
+  fi
+  if [ "$REFRESH" != auto ]; then
+    gamescope_args+=(-r "$REFRESH")
+  fi
+  if [ "$HDR" = on ]; then
+    gamescope_args+=(--hdr-enabled)
+  fi
+  if [ -n "$GAMESCOPE_ARGS" ]; then
+    # shellcheck disable=SC2206  # word splitting of the extra args is the point
+    gamescope_args+=($GAMESCOPE_ARGS)
+  fi
+}
+
+shell_cmd=()
+build_shell_cmd() {
+  case "$SHELL_NAME" in
+    kodi)   shell_cmd=(kodi --standalone --windowing=x11) ;;
+    mpv)    shell_cmd=(mpv --fullscreen --idle=yes --force-window=yes) ;;
+    custom) shell_cmd=(bash -c "$SHELL_CMD") ;;
+  esac
+}
+
+seed_kodi_profile() {
+  local userdata="$HOME/.kodi/userdata"
+  if [ -e "$userdata/guisettings.xml" ]; then
+    return
+  fi
+  if [ ! -d "$KODI_SEED_DIR" ]; then
+    log "no Kodi seed directory at $KODI_SEED_DIR"
+    return
+  fi
+  mkdir -p "$userdata"
+  cp -n "$KODI_SEED_DIR"/*.xml "$userdata"/
+  log "seeded Kodi profile from $KODI_SEED_DIR"
+}
+
+main() {
+  read_config
+  validate_config
+  build_gamescope_args
+  build_shell_cmd
+  if [ "$SHELL_NAME" = kodi ]; then
+    seed_kodi_profile
+  fi
+  local cmd=(gamescope "${gamescope_args[@]}" -- "${shell_cmd[@]}")
+  log "shell=$SHELL_NAME resolution=$RESOLUTION refresh=$REFRESH hdr=$HDR"
+  if [ "$DRY_RUN" = 1 ]; then
+    printf '%q ' "${cmd[@]}"
+    printf '\n'
+    return 0
+  fi
+  exec "${cmd[@]}"
+}
+
+main "$@"

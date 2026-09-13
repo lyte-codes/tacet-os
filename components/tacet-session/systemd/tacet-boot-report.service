@@ -1,0 +1,14 @@
+[Unit]
+Description=Tacet boot report (CI boot test only)
+Documentation=file:///usr/share/doc/tacet-session/README.md
+# Never runs on real hardware.
+ConditionVirtualization=vm
+After=tacet-session.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tacet/tacet-boot-report
+TimeoutStartSec=150
+
+[Install]
+WantedBy=graphical.target
