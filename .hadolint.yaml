@@ -3,3 +3,4 @@ ignored:
   - DL3040
   - DL3033   # yum rules do not apply
   - DL3059   # consecutive RUNs are deliberate for readable layers
+  - DL3006   # FROM ${BASE_IMAGE}: the tag (and in CI the digest) is in the ARG
