@@ -5,7 +5,7 @@ ticked without it.
 
 | Milestone | State | Notes |
 |---|---|---|
-| **M0 — Boots** | in progress | Repo, Containerfile, tacet-session, overlays, CI and docs are written. Not yet built in CI or booted on an N100. |
+| **M0 — Boots** | in progress | CI is green: image builds, bootc-image-builder disk builds, QEMU boot test reports `session=active`. Not yet booted on an N100. |
 | **M1 — Remote works** | blocked | `tacet-cec-bridge-spec.md` is not in the repo. |
 | M2 — Updates | not started | Waits for M1 on hardware. |
 | M3 — Silent | not started | |
@@ -25,7 +25,7 @@ ticked without it.
 - [x] firewalld `tacet` zone as default; NetworkManager connectivity check off
 - [x] CI: lint, tests, image build, bootc-image-builder disk, QEMU boot test
 - [x] Release and weekly-rebuild workflows; version/tag tooling
-- [ ] First green CI run (validates every package name against real repos)
+- [x] First green CI run: image build ~5 min, disk ~3 min, QEMU boot to `tacet-session` active in ~15 s
 - [ ] Boots to Kodi on an N100 from a flashed image ← **M0 done when**
 
 ## Known gaps to close before calling M0 done
