@@ -63,15 +63,19 @@ jobs:
           sudo podman image inspect localhost/tacet:ci --format 'size={{.Size}} layers={{len .RootFS.Layers}}'
           sudo podman run --rm localhost/tacet:ci rpm -qa | sort > rpm-qa.txt
           wc -l rpm-qa.txt
+      - name: Export image for syft
+        run: |
+          sudo podman save --format oci-archive -o tacet.oci.tar localhost/tacet:ci
+          sudo chown "$USER" tacet.oci.tar
       - name: SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: localhost/tacet:ci
+          image: oci-archive:tacet.oci.tar
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: false
-        env:
-          SYFT_CONTAINER_RUNTIME: podman
+      - name: Remove image export
+        run: rm -f tacet.oci.tar
       - uses: actions/upload-artifact@v4
         with:
           name: build-metadata
