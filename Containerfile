@@ -10,7 +10,7 @@ ARG BUILDER_IMAGE=quay.io/fedora/fedora:44
 
 # ---------------------------------------------------------------------------
 FROM ${BUILDER_IMAGE} AS rpmbuild
-RUN dnf -y install rpm-build make tar systemd-rpm-macros && dnf clean all
+RUN dnf -y install rpm-build make tar gcc python3 kernel-headers libcec-devel systemd-rpm-macros && dnf clean all
 COPY VERSION /src/VERSION
 COPY components/ /src/components/
 COPY packaging/ /src/packaging/
@@ -124,10 +124,10 @@ RUN set -eu; \
     m=/usr/share/kodi/system/addon-manifest.xml; \
     sed -i -e '/repository.xbmc.org/d' -e '/service.xbmc.versioncheck/d' "$m"
 
-# Units (spec §4.1). tacet-cec and tacet-dns are enabled when their milestones
-# land (M1, M3); enabling a missing unit fails the build on purpose.
+# Units (spec §4.1). tacet-dns is enabled when M3 lands; enabling a missing
+# unit fails the build on purpose.
 RUN set -eu; \
-    systemctl enable tacet-session.service tacet-boot-report.service \
+    systemctl enable tacet-session.service tacet-boot-report.service tacet-cec.service \
                      firewalld.service NetworkManager.service chronyd.service; \
     systemctl set-default graphical.target; \
     systemctl mask getty@tty1.service \

@@ -26,12 +26,14 @@ jobs:
       - name: Install linters
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q shellcheck
+          sudo apt-get install -y -q shellcheck libcec-dev build-essential linux-libc-dev
       - uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Containerfile
       - name: Lint shell, python, systemd units
         run: make lint
+      - name: Build tacet-cec against libcec
+        run: make -C components/tacet-cec all && components/tacet-cec/tacet-cec --list-adapters
       - name: docs/PACKAGES.md is current
         run: python3 ci/gen-packages-md.py --check
 

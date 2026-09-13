@@ -1,0 +1,59 @@
+; tacet-cec configuration (SPEC.md §6).
+;
+; This is the shipped default at /usr/share/tacet/cec.conf.default. To change
+; anything, copy it to /etc/tacet/cec.conf and edit that; the bridge reads
+; /etc/tacet/cec.conf when it exists and this file otherwise. Every key is
+; optional; a bad value is logged and the built-in default is kept.
+
+[cec]
+; auto, or an adapter path (/dev/cec0 on boards with native CEC,
+; /dev/ttyACM0 or /dev/tacet-cec-adapter for a Pulse-Eight USB adapter)
+adapter = auto
+; playback1 | playback2 | playback3 | recording1
+; libcec allocates the first free address of that type; the number is a
+; preference, not a guarantee.
+logical_address = playback1
+; auto, or the HDMI position as a.b.c.d (1.0.0.0 = TV input 1)
+physical_address = auto
+; name the TV shows for this box (up to 12 characters)
+device_name = Tacet
+; re-send Active Source when the TV wakes up so the remote keeps working
+reclaim_active_source = true
+
+[input]
+; also expose a virtual gamepad (d-pad hat, A/B/Guide/Start)
+gamepad = true
+; true: d-pad/Select/Exit fire on both devices; false: gamepad only for those
+gamepad_mirror = true
+; hold-to-repeat timing, in milliseconds
+repeat_delay_ms = 400
+repeat_rate_ms = 100
+; a held key is released after this even if the TV never sends the release
+repeat_timeout_ms = 2000
+; ignore a second press of the same button within this window
+debounce_ms = 50
+
+[keymap]
+; CEC code (hex) = KEY_NAME[,no_repeat]   overrides the built-in map
+; Set a code to none to unmap it. `tacet-cec --dump-keymap` prints the
+; effective map; `tacet-cec --test` shows what your remote sends.
+;
+; Volume keys are unmapped by default because TVs handle volume themselves.
+; To route them to the box instead:
+;0x41 = KEY_VOLUMEUP
+;0x42 = KEY_VOLUMEDOWN
+;0x43 = KEY_MUTE,no_repeat
+;
+; Kodi runs under gamescope's XWayland in Tacet v1, and X11 cannot deliver
+; Linux key codes above 247. The defaults for Info (0x35) and the colour keys
+; (0x71-0x74) are above that. Until the shell moves to native Wayland, these
+; alternatives reach Kodi:
+;0x35 = KEY_I,no_repeat
+;0x72 = KEY_F1,no_repeat
+;0x73 = KEY_F2,no_repeat
+;0x74 = KEY_F3,no_repeat
+;0x71 = KEY_F4,no_repeat
+
+[log]
+; error | warn | info | debug   (debug logs every CEC frame)
+level = info

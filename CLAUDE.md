@@ -19,7 +19,12 @@ read it before touching anything. This file only holds the working rules.
   demonstrably done on hardware. Current milestone: see `docs/STATUS.md`.
 - Each component under `components/` is a standalone subproject with its own
   `README.md`, `VERSION`, `Makefile` (`make test`, `make install DESTDIR=`)
-  and an RPM spec in `packaging/`. Components never import from each other.
+  and an RPM spec, either in the root `packaging/` or in the component's own
+  `packaging/` (tacet-cec keeps its unit, udev rules and default config there
+  too, per its spec). Components never import from each other.
+- A component with its own spec keeps it in the component directory
+  (`components/tacet-cec/SPEC.md`). Implement to that spec; deviations get a
+  `DECISION:` comment and a line in the component README.
 - Any new outbound network endpoint requires a row in `docs/PRIVACY.md` in the
   same commit. No row, no merge.
 - Prefer config over code. If a systemd option or NetworkManager setting
@@ -34,7 +39,7 @@ read it before touching anything. This file only holds the working rules.
 ## Local checks
 
 ```
-make lint      # shellcheck, hadolint (if installed), python syntax, unit files
+make lint      # shellcheck, hadolint (if installed), python syntax, unit files, C -Werror (needs libcec headers)
 make test      # every component's `make test`
 make packages  # regenerate docs/PACKAGES.md from the Containerfile
 make build     # podman build of the bootc image (needs podman)

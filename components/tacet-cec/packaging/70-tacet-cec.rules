@@ -1,0 +1,19 @@
+# tacet-cec: device access for the bridge (runs as user tacet-cec, group input)
+# and classification of its virtual devices (SPEC.md §7).
+
+# /dev/uinput: static node so opening it loads the module.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
+
+# Kernel CEC framework devices (Raspberry Pi 5 and boards with native CEC).
+SUBSYSTEM=="cec", GROUP="input", MODE="0660"
+
+# Pulse-Eight USB-CEC adapter: a CDC-ACM serial port that libcec drives directly.
+# DECISION: not in SPEC.md §7 (which only names /dev/cec*), but the N100 has no
+# native CEC, so this adapter is the Tier 1 path.
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="2548", ATTRS{idProduct}=="1001|1002", GROUP="input", MODE="0660", SYMLINK+="tacet-cec-adapter"
+
+# The bridge's virtual devices. Only the keys the keymap references are
+# enabled, so udev's own heuristics would not call the keyboard a keyboard;
+# tag both explicitly so libinput and gamescope pick them up.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Tacet CEC Keyboard", ENV{ID_INPUT}="1", ENV{ID_INPUT_KEY}="1", ENV{ID_INPUT_KEYBOARD}="1"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Tacet CEC Gamepad", ENV{ID_INPUT}="1", ENV{ID_INPUT_JOYSTICK}="1"

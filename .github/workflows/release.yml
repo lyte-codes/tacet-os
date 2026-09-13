@@ -39,7 +39,7 @@ jobs:
           df -h /
       - name: Lint and test
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q shellcheck qemu-system-x86 ovmf
+          sudo apt-get update -q && sudo apt-get install -y -q shellcheck libcec-dev build-essential linux-libc-dev qemu-system-x86 ovmf
           make lint test
       - name: Build image
         run: PODMAN="sudo podman" ci/build.sh localhost/tacet:release

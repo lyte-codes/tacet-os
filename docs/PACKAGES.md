@@ -85,6 +85,7 @@ once the weekly job has run, and in the SBOM attached to each release.
 
 ### tacet
 
+- `tacet-cec` 0.1.0 (built from `components/tacet-cec/`)
 - `tacet-session` 0.1.0 (built from `components/tacet-session/`)
 
 ## Removed

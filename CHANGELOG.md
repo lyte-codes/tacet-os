@@ -14,5 +14,8 @@ Version scheme: `<FEDORA>.<MAJOR>.<PATCH>` (spec §7).
 - `tacet-session`: system unit that runs gamescope + Kodi on tty1 as the `tv`
   user, with `/etc/tacet/session.conf` for shell, resolution, refresh, HDR.
 - `tacet-boot-report`: VM-only oneshot used by the QEMU boot test.
+- `tacet-cec` 0.1.0: HDMI-CEC to uinput bridge (virtual keyboard + gamepad),
+  INI config, hold-to-repeat with lost-release protection, adapter reconnect
+  with backoff, hardened unit with no network access (M1).
 - Tacet plymouth theme and kernel arguments.
 - Privacy contract (`docs/PRIVACY.md`), hardware and flashing docs.

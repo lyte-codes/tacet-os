@@ -6,7 +6,7 @@ ticked without it.
 | Milestone | State | Notes |
 |---|---|---|
 | **M0 — Boots** | in progress | CI is green: image builds, bootc-image-builder disk builds, QEMU boot test reports `session=active`. Not yet booted on an N100. |
-| **M1 — Remote works** | blocked | `tacet-cec-bridge-spec.md` is not in the repo. |
+| **M1 — Remote works** | in progress | tacet-cec implemented to `components/tacet-cec/SPEC.md`, unit-tested, in the image. Needs a TV: see its `TESTING.md`. |
 | M2 — Updates | not started | Waits for M1 on hardware. |
 | M3 — Silent | not started | |
 | M4 — Usable | not started | |
@@ -27,6 +27,20 @@ ticked without it.
 - [x] Release and weekly-rebuild workflows; version/tag tooling
 - [x] First green CI run: image build ~5 min, disk ~3 min, QEMU boot to `tacet-session` active in ~15 s
 - [ ] Boots to Kodi on an N100 from a flashed image ← **M0 done when**
+
+## M1 checklist
+
+- [x] `components/tacet-cec/SPEC.md` (v0.1) in the repo
+- [x] C11 daemon: libcec C API, raw uinput keyboard + gamepad, INI config with
+      `cec.conf.default` fallback, repeat/debounce/lost-release state machine
+      on timerfd, backoff reconnect, `--list-adapters` / `--dump-keymap` / `--test`
+- [x] Unit tests (keymap, config, repeat) and `tools/fake-cec.sh`, no hardware
+- [x] Hardened unit (`PrivateNetwork=yes`, `DeviceAllow` only), udev rules,
+      modules-load, RPM built in the Containerfile, service enabled
+- [x] Boot test runs `tacet-cec --list-adapters` in the image
+- [ ] TESTING.md acceptance list on a TV (N100 + Pulse-Eight, or Pi 5) ← **M1 done when**
+- [ ] Decide on Info / colour keys under XWayland (README known limitation)
+- [ ] Gamepad recognised by gamescope, or switch to Xbox-style IDs (spec §12)
 
 ## Known gaps to close before calling M0 done
 

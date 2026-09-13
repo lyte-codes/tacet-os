@@ -35,6 +35,7 @@ the current image is shorter than the contract:
 | `ghcr.io` | Nothing contacts it. `bootc-fetch-apply-updates.timer` is masked. |
 | Kodi | Official add-on repository and version checker are disabled in `addon-manifest.xml`; add-on update checks, RSS feed, zeroconf, UPnP, web server and AirPlay are off in the seeded `guisettings.xml`. Jellyfin add-on not yet bundled. |
 | Firefox | Installed but not launched by anything yet; the TV profile with telemetry off lands in M4. Do not treat Firefox as silent until then. |
+| tacet-cec | No network at all: the unit runs with `PrivateNetwork=yes`, an empty capability set and a closed device policy. The only thing it transmits is the CEC "Active Source" message on the HDMI wire. |
 | Fedora countme | Disabled in `dnf.conf` and every `.repo` file; `rpm-ostree-countme` timer masked. |
 | mDNS | Inbound allowed by the firewall zone; Kodi's own zeroconf announcement is off. Nothing announces. |
 | DHCP | Hostname is never sent (`hostname-mode=none`, `dhcp-send-hostname=false`); wifi MAC randomised per network. |

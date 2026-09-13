@@ -1,0 +1,45 @@
+[Unit]
+Description=Tacet CEC to uinput bridge
+Documentation=file:///usr/share/doc/tacet-cec/README.md
+After=systemd-udevd.service systemd-modules-load.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tacet-cec
+Restart=always
+RestartSec=2
+User=tacet-cec
+Group=tacet
+SupplementaryGroups=input
+
+# Hardening (SPEC.md §7). The bridge touches /dev/uinput, /dev/cec* and, for
+# a Pulse-Eight USB adapter, /dev/ttyACM*; nothing else.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+DevicePolicy=closed
+DeviceAllow=/dev/uinput rw
+DeviceAllow=char-cec rw
+DeviceAllow=char-ttyACM rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

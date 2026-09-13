@@ -24,6 +24,19 @@
 - 8 GB RAM is plenty; 4 GB works. Storage: the image needs about 10 GB; the
   rest of the disk is left for `/var`.
 
+## CEC
+
+`tacet-cec` (M1) drives the TV remote. It needs one of:
+
+- a **Pulse-Eight USB-CEC adapter** between the box and the TV. Shows up as
+  `/dev/ttyACM0` (symlinked `/dev/tacet-cec-adapter`). This is the N100 path;
+  Intel HDMI ports do not expose CEC.
+- a board with **native CEC** through the kernel `cec` framework
+  (`/dev/cec0`): Raspberry Pi 5, and some boards via `cec-gpio`.
+
+`tacet-cec --list-adapters` shows what libcec can see; `tacet-cec --test`
+shows what the TV sends. See `components/tacet-cec/TESTING.md`.
+
 ## Checking a box after flashing
 
 From a keyboard on the box (SSH is off by default):
@@ -32,5 +45,6 @@ From a keyboard on the box (SSH is off by default):
 journalctl -b -u tacet-session      # gamescope + Kodi startup
 loginctl list-sessions               # `tv` on seat0, tty1
 vainfo                               # hardware decode profiles
-cec-ctl --list-devices               # kernel CEC devices, if any
+tacet-cec --list-adapters            # CEC adapters libcec can see
+systemctl status tacet-cec           # the bridge; --test mode in components/tacet-cec/TESTING.md
 ```

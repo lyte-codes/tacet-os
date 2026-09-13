@@ -13,3 +13,8 @@
 __pycache__/
 *.pyc
 .DS_Store
+# C build artifacts
+*.o
+components/tacet-cec/tacet-cec
+components/tacet-cec/tests/run-tests
+components/tacet-cec/src/keycodes.h

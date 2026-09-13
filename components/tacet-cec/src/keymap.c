@@ -1,17 +1,19 @@
 #include "keymap.h"
+#include "keycodes.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <linux/input-event-codes.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
-typedef struct { const char *name; uint16_t code; } name_entry;
+#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
-/* CEC user control codes (CEC 1.4 table 27, libcec cectypes.h). */
-static const name_entry cec_names[] = {
+/* CEC user control codes (CEC 1.4 table 27), libcec spelling without the
+ * CEC_USER_CONTROL_CODE_ prefix. Used for log messages and --test output,
+ * and accepted in config as an alternative to the hex code. */
+static const struct { const char *name; uint8_t code; } cec_names[] = {
     { "SELECT", 0x00 }, { "UP", 0x01 }, { "DOWN", 0x02 }, { "LEFT", 0x03 },
     { "RIGHT", 0x04 }, { "RIGHT_UP", 0x05 }, { "RIGHT_DOWN", 0x06 },
     { "LEFT_UP", 0x07 }, { "LEFT_DOWN", 0x08 }, { "ROOT_MENU", 0x09 },
@@ -45,113 +47,80 @@ static const name_entry cec_names[] = {
     { "AN_RETURN", 0x91 }, { "AN_CHANNELS_LIST", 0x96 },
 };
 
-/* Linux keys the bridge knows by name. The first block (ESC..D, codes 1..31)
- * is complete on purpose: udev's input_id only tags a device
- * ID_INPUT_KEYBOARD when all of those are present, and libinput/gamescope
- * treat untagged devices as not-a-keyboard. */
-static const name_entry key_names[] = {
-    { "KEY_ESC", KEY_ESC }, { "KEY_1", KEY_1 }, { "KEY_2", KEY_2 }, { "KEY_3", KEY_3 },
-    { "KEY_4", KEY_4 }, { "KEY_5", KEY_5 }, { "KEY_6", KEY_6 }, { "KEY_7", KEY_7 },
-    { "KEY_8", KEY_8 }, { "KEY_9", KEY_9 }, { "KEY_0", KEY_0 }, { "KEY_MINUS", KEY_MINUS },
-    { "KEY_EQUAL", KEY_EQUAL }, { "KEY_BACKSPACE", KEY_BACKSPACE }, { "KEY_TAB", KEY_TAB },
-    { "KEY_Q", KEY_Q }, { "KEY_W", KEY_W }, { "KEY_E", KEY_E }, { "KEY_R", KEY_R },
-    { "KEY_T", KEY_T }, { "KEY_Y", KEY_Y }, { "KEY_U", KEY_U }, { "KEY_I", KEY_I },
-    { "KEY_O", KEY_O }, { "KEY_P", KEY_P }, { "KEY_LEFTBRACE", KEY_LEFTBRACE },
-    { "KEY_RIGHTBRACE", KEY_RIGHTBRACE }, { "KEY_ENTER", KEY_ENTER },
-    { "KEY_LEFTCTRL", KEY_LEFTCTRL }, { "KEY_A", KEY_A }, { "KEY_S", KEY_S },
-    { "KEY_D", KEY_D }, { "KEY_F", KEY_F }, { "KEY_G", KEY_G }, { "KEY_H", KEY_H },
-    { "KEY_J", KEY_J }, { "KEY_K", KEY_K }, { "KEY_L", KEY_L },
-    { "KEY_SEMICOLON", KEY_SEMICOLON }, { "KEY_APOSTROPHE", KEY_APOSTROPHE },
-    { "KEY_GRAVE", KEY_GRAVE }, { "KEY_LEFTSHIFT", KEY_LEFTSHIFT },
-    { "KEY_BACKSLASH", KEY_BACKSLASH }, { "KEY_Z", KEY_Z }, { "KEY_X", KEY_X },
-    { "KEY_C", KEY_C }, { "KEY_V", KEY_V }, { "KEY_B", KEY_B }, { "KEY_N", KEY_N },
-    { "KEY_M", KEY_M }, { "KEY_COMMA", KEY_COMMA }, { "KEY_DOT", KEY_DOT },
-    { "KEY_SLASH", KEY_SLASH }, { "KEY_RIGHTSHIFT", KEY_RIGHTSHIFT },
-    { "KEY_LEFTALT", KEY_LEFTALT }, { "KEY_SPACE", KEY_SPACE },
-    { "KEY_CAPSLOCK", KEY_CAPSLOCK },
-    { "KEY_F1", KEY_F1 }, { "KEY_F2", KEY_F2 }, { "KEY_F3", KEY_F3 }, { "KEY_F4", KEY_F4 },
-    { "KEY_F5", KEY_F5 }, { "KEY_F6", KEY_F6 }, { "KEY_F7", KEY_F7 }, { "KEY_F8", KEY_F8 },
-    { "KEY_F9", KEY_F9 }, { "KEY_F10", KEY_F10 }, { "KEY_F11", KEY_F11 }, { "KEY_F12", KEY_F12 },
-    { "KEY_HOME", KEY_HOME }, { "KEY_UP", KEY_UP }, { "KEY_PAGEUP", KEY_PAGEUP },
-    { "KEY_LEFT", KEY_LEFT }, { "KEY_RIGHT", KEY_RIGHT }, { "KEY_END", KEY_END },
-    { "KEY_DOWN", KEY_DOWN }, { "KEY_PAGEDOWN", KEY_PAGEDOWN }, { "KEY_INSERT", KEY_INSERT },
-    { "KEY_DELETE", KEY_DELETE }, { "KEY_MUTE", KEY_MUTE }, { "KEY_VOLUMEDOWN", KEY_VOLUMEDOWN },
-    { "KEY_VOLUMEUP", KEY_VOLUMEUP }, { "KEY_POWER", KEY_POWER }, { "KEY_PAUSE", KEY_PAUSE },
-    { "KEY_COMPOSE", KEY_COMPOSE }, { "KEY_MENU", KEY_MENU }, { "KEY_STOP", KEY_STOP },
-    { "KEY_SLEEP", KEY_SLEEP }, { "KEY_BACK", KEY_BACK }, { "KEY_FORWARD", KEY_FORWARD },
-    { "KEY_EJECTCD", KEY_EJECTCD }, { "KEY_NEXTSONG", KEY_NEXTSONG },
-    { "KEY_PLAYPAUSE", KEY_PLAYPAUSE }, { "KEY_PREVIOUSSONG", KEY_PREVIOUSSONG },
-    { "KEY_STOPCD", KEY_STOPCD }, { "KEY_RECORD", KEY_RECORD }, { "KEY_REWIND", KEY_REWIND },
-    { "KEY_HOMEPAGE", KEY_HOMEPAGE }, { "KEY_EXIT", KEY_EXIT }, { "KEY_PLAY", KEY_PLAY },
-    { "KEY_FASTFORWARD", KEY_FASTFORWARD }, { "KEY_MEDIA", KEY_MEDIA },
-    /* Above the X11 range; accepted so a Wayland-native shell can use them,
-     * and flagged by keymap_key_fits_x11(). */
-    { "KEY_OK", KEY_OK }, { "KEY_SELECT", KEY_SELECT }, { "KEY_INFO", KEY_INFO },
-    { "KEY_SUBTITLE", KEY_SUBTITLE }, { "KEY_RED", KEY_RED }, { "KEY_GREEN", KEY_GREEN },
-    { "KEY_YELLOW", KEY_YELLOW }, { "KEY_BLUE", KEY_BLUE }, { "KEY_CHANNELUP", KEY_CHANNELUP },
-    { "KEY_CHANNELDOWN", KEY_CHANNELDOWN }, { "KEY_EPG", KEY_EPG },
-    { "KEY_CONTEXT_MENU", KEY_CONTEXT_MENU }, { "KEY_NEXT", KEY_NEXT },
-    { "KEY_PREVIOUS", KEY_PREVIOUS },
+/* Spec §5.1. */
+static const struct { uint8_t cec; uint16_t key; bool no_repeat; } defaults[] = {
+    { 0x00, KEY_ENTER, true },        /* Select */
+    { 0x01, KEY_UP, false },
+    { 0x02, KEY_DOWN, false },
+    { 0x03, KEY_LEFT, false },
+    { 0x04, KEY_RIGHT, false },
+    { 0x0D, KEY_ESC, true },          /* Exit */
+    { 0x09, KEY_HOME, true },         /* Root Menu */
+    { 0x0A, KEY_MENU, true },         /* Setup Menu */
+    { 0x0B, KEY_MENU, true },         /* Contents Menu */
+    { 0x20, KEY_0, false }, { 0x21, KEY_1, false }, { 0x22, KEY_2, false },
+    { 0x23, KEY_3, false }, { 0x24, KEY_4, false }, { 0x25, KEY_5, false },
+    { 0x26, KEY_6, false }, { 0x27, KEY_7, false }, { 0x28, KEY_8, false },
+    { 0x29, KEY_9, false },
+    { 0x30, KEY_PAGEUP, false },      /* Channel Up */
+    { 0x31, KEY_PAGEDOWN, false },    /* Channel Down */
+    { 0x35, KEY_INFO, true },         /* Display Info */
+    { 0x37, KEY_PAGEUP, false },
+    { 0x38, KEY_PAGEDOWN, false },
+    { 0x44, KEY_PLAY, true },
+    { 0x45, KEY_STOP, true },
+    { 0x46, KEY_PAUSE, true },
+    { 0x48, KEY_REWIND, false },
+    { 0x49, KEY_FASTFORWARD, false },
+    { 0x4B, KEY_NEXTSONG, true },     /* Forward (skip) */
+    { 0x4C, KEY_PREVIOUSSONG, true }, /* Backward (skip) */
+    { 0x60, KEY_PLAYPAUSE, true },    /* Play/Pause */
+    { 0x71, KEY_BLUE, true },
+    { 0x72, KEY_RED, true },
+    { 0x73, KEY_GREEN, true },
+    { 0x74, KEY_YELLOW, true },
 };
 
-/* Default mapping. Every target is a key Kodi's stock keyboard.xml binds and
- * that fits the X11 keycode range. SPEC.md §3 explains each choice. */
-static const struct { uint8_t cec; uint16_t key; } defaults[] = {
-    { 0x00, KEY_ENTER },        /* SELECT */
-    { 0x2B, KEY_ENTER },        /* ENTER */
-    { 0x01, KEY_UP }, { 0x02, KEY_DOWN }, { 0x03, KEY_LEFT }, { 0x04, KEY_RIGHT },
-    { 0x09, KEY_HOMEPAGE },     /* ROOT_MENU  -> Kodi home */
-    { 0x10, KEY_HOMEPAGE },     /* TOP_MENU */
-    { 0x0A, KEY_COMPOSE },      /* SETUP_MENU    -> Kodi context menu */
-    { 0x0B, KEY_COMPOSE },      /* CONTENTS_MENU */
-    { 0x0C, KEY_COMPOSE },      /* FAVORITE_MENU */
-    { 0x11, KEY_COMPOSE },      /* DVD_MENU */
-    { 0x0D, KEY_BACKSPACE },    /* EXIT      -> Kodi back */
-    { 0x91, KEY_BACKSPACE },    /* AN_RETURN (Samsung "return") */
-    { 0x20, KEY_0 }, { 0x21, KEY_1 }, { 0x22, KEY_2 }, { 0x23, KEY_3 }, { 0x24, KEY_4 },
-    { 0x25, KEY_5 }, { 0x26, KEY_6 }, { 0x27, KEY_7 }, { 0x28, KEY_8 }, { 0x29, KEY_9 },
-    { 0x2A, KEY_DOT },
-    { 0x2C, KEY_DELETE },       /* CLEAR */
-    { 0x30, KEY_PAGEUP },       /* CHANNEL_UP */
-    { 0x31, KEY_PAGEDOWN },     /* CHANNEL_DOWN */
-    { 0x37, KEY_PAGEUP }, { 0x38, KEY_PAGEDOWN },
-    { 0x35, KEY_I },            /* DISPLAY_INFORMATION -> Kodi info */
-    { 0x53, KEY_E },            /* ELECTRONIC_PROGRAM_GUIDE -> Kodi TV guide */
-    { 0x51, KEY_T },            /* SUB_PICTURE -> Kodi subtitles toggle */
-    { 0x41, KEY_VOLUMEUP }, { 0x42, KEY_VOLUMEDOWN }, { 0x43, KEY_MUTE },
-    { 0x65, KEY_MUTE },
-    { 0x44, KEY_PLAYPAUSE }, { 0x46, KEY_PLAYPAUSE },
-    { 0x60, KEY_PLAYPAUSE }, { 0x61, KEY_PLAYPAUSE },
-    { 0x45, KEY_STOPCD }, { 0x64, KEY_STOPCD },
-    { 0x47, KEY_RECORD }, { 0x62, KEY_RECORD },
-    { 0x48, KEY_REWIND },
-    { 0x49, KEY_FASTFORWARD },
-    { 0x4A, KEY_EJECTCD },
-    { 0x4B, KEY_NEXTSONG },     /* FORWARD  -> skip next */
-    { 0x4C, KEY_PREVIOUSSONG }, /* BACKWARD -> skip previous */
-    { 0x72, KEY_F1 },           /* F2_RED */
-    { 0x73, KEY_F2 },           /* F3_GREEN */
-    { 0x74, KEY_F3 },           /* F4_YELLOW */
-    { 0x71, KEY_F4 },           /* F1_BLUE */
+/* Spec §5.2. Fixed in v0.1. */
+static const struct { uint8_t cec; gamepad_action act; } gamepad_table[] = {
+    { 0x01, { GP_HAT_Y, -1 } },
+    { 0x02, { GP_HAT_Y, +1 } },
+    { 0x03, { GP_HAT_X, -1 } },
+    { 0x04, { GP_HAT_X, +1 } },
+    { 0x00, { GP_BUTTON, BTN_SOUTH } },   /* Select */
+    { 0x0D, { GP_BUTTON, BTN_EAST } },    /* Exit */
+    { 0x09, { GP_BUTTON, BTN_MODE } },    /* Root Menu */
+    { 0x60, { GP_BUTTON, BTN_START } },   /* Play/Pause */
+    { 0x61, { GP_BUTTON, BTN_START } },   /* Pause/Play function */
 };
-
-#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 
 void keymap_defaults(keymap *m)
 {
     memset(m, 0, sizeof(*m));
-    for (size_t i = 0; i < ARRAY_LEN(defaults); i++)
-        m->key[defaults[i].cec] = defaults[i].key;
+    for (size_t i = 0; i < ARRAY_LEN(defaults); i++) {
+        m->entry[defaults[i].cec].key = defaults[i].key;
+        m->entry[defaults[i].cec].no_repeat = defaults[i].no_repeat;
+    }
 }
 
-uint16_t keymap_lookup(const keymap *m, int cec_code)
+const keymap_entry *keymap_lookup(const keymap *m, int cec_code)
 {
+    static const keymap_entry none = { KEYMAP_UNMAPPED, false };
     if (cec_code < 0 || cec_code >= KEYMAP_CEC_CODES)
-        return KEYMAP_UNMAPPED;
-    return m->key[cec_code];
+        return &none;
+    return &m->entry[cec_code];
 }
 
-static int parse_number(const char *s, int max)
+gamepad_action keymap_gamepad(int cec_code)
+{
+    gamepad_action none = { GP_NONE, 0 };
+    for (size_t i = 0; i < ARRAY_LEN(gamepad_table); i++)
+        if (gamepad_table[i].cec == cec_code)
+            return gamepad_table[i].act;
+    return none;
+}
+
+static int parse_number(const char *s, long max)
 {
     char *end;
     errno = 0;
@@ -161,30 +130,17 @@ static int parse_number(const char *s, int max)
     return (int)v;
 }
 
-static int lookup_name(const name_entry *table, size_t n, const char *name,
-                       const char *prefix)
-{
-    if (isdigit((unsigned char)name[0]))
-        return -2; /* caller handles numbers */
-    size_t plen = strlen(prefix);
-    if (strncasecmp(name, prefix, plen) == 0)
-        name += plen;
-    for (size_t i = 0; i < n; i++) {
-        const char *tn = table[i].name;
-        if (strncasecmp(tn, prefix, plen) == 0)
-            tn += plen;
-        if (strcasecmp(tn, name) == 0)
-            return table[i].code;
-    }
-    return -1;
-}
-
 int keymap_cec_code(const char *name)
 {
-    int r = lookup_name(cec_names, ARRAY_LEN(cec_names), name, "CEC_USER_CONTROL_CODE_");
-    if (r == -2)
+    if (isdigit((unsigned char)name[0]))
         return parse_number(name, KEYMAP_CEC_CODES - 1);
-    return r;
+    static const char prefix[] = "CEC_USER_CONTROL_CODE_";
+    if (strncasecmp(name, prefix, sizeof(prefix) - 1) == 0)
+        name += sizeof(prefix) - 1;
+    for (size_t i = 0; i < ARRAY_LEN(cec_names); i++)
+        if (strcasecmp(cec_names[i].name, name) == 0)
+            return cec_names[i].code;
+    return -1;
 }
 
 const char *keymap_cec_name(int cec_code)
@@ -195,35 +151,39 @@ const char *keymap_cec_name(int cec_code)
     return NULL;
 }
 
-int keymap_key_code(const char *name)
+int keycode_from_name(const char *name)
 {
-    int r = lookup_name(key_names, ARRAY_LEN(key_names), name, "KEY_");
-    if (r == -2)
-        return parse_number(name, KEY_MAX);
-    return r;
+    if (isdigit((unsigned char)name[0]))
+        return parse_number(name, KEYCODE_MAX);
+    /* keycode_names is sorted by name (generated), so binary search. */
+    size_t lo = 0, hi = KEYCODE_NAME_COUNT;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        int c = strcmp(keycode_names[mid].name, name);
+        if (c == 0)
+            return keycode_names[mid].code;
+        if (c < 0)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    /* Second pass, case-insensitive and without the KEY_ prefix, for
+     * hand-typed config ("enter", "Key_Enter"). */
+    for (size_t i = 0; i < KEYCODE_NAME_COUNT; i++) {
+        const char *n = keycode_names[i].name;
+        if (strcasecmp(n, name) == 0 || (strncmp(n, "KEY_", 4) == 0 && strcasecmp(n + 4, name) == 0))
+            return keycode_names[i].code;
+    }
+    return -1;
 }
 
-const char *keymap_key_name(int key_code)
+const char *keycode_to_name(int code)
 {
-    for (size_t i = 0; i < ARRAY_LEN(key_names); i++)
-        if (key_names[i].code == key_code)
-            return key_names[i].name;
+    /* Prefer the canonical (first, alphabetically) name for aliased codes. */
+    for (size_t i = 0; i < KEYCODE_NAME_COUNT; i++)
+        if (keycode_names[i].code == code)
+            return keycode_names[i].name;
     return NULL;
-}
-
-bool keymap_key_fits_x11(int key_code)
-{
-    return key_code > 0 && key_code <= KEYMAP_X11_MAX_KEY;
-}
-
-size_t keymap_known_key_count(void)
-{
-    return ARRAY_LEN(key_names);
-}
-
-uint16_t keymap_known_key(size_t index)
-{
-    return index < ARRAY_LEN(key_names) ? key_names[index].code : 0;
 }
 
 static char *trim(char *s)
@@ -236,69 +196,92 @@ static char *trim(char *s)
     return s;
 }
 
-int keymap_parse_line(keymap *m, const char *line, char *err, size_t errlen)
+int keymap_apply(keymap *m, const char *lhs, const char *rhs, char *err, size_t errlen)
 {
-    char buf[256];
-    snprintf(buf, sizeof(buf), "%s", line);
-    char *hash = strchr(buf, '#');
-    if (hash)
-        *hash = '\0';
-    char *s = trim(buf);
-    if (*s == '\0')
+    char l[64], r[128];
+    snprintf(l, sizeof(l), "%s", lhs);
+    snprintf(r, sizeof(r), "%s", rhs);
+    char *code_s = trim(l);
+    char *val = trim(r);
+    if (*code_s == '\0')
         return 0;
 
-    /* "CEC KEY", "CEC=KEY" or "CEC = KEY" */
-    char *sep = strpbrk(s, " \t=");
-    if (!sep) {
-        snprintf(err, errlen, "expected 'CEC_CODE KEY_NAME', got '%s'", s);
+    int cec = keymap_cec_code(code_s);
+    if (cec < 0) {
+        snprintf(err, errlen, "unknown CEC code '%s'", code_s);
         return -1;
     }
-    *sep = '\0';
-    char *rhs = sep + 1;
-    while (*rhs == ' ' || *rhs == '\t' || *rhs == '=')
-        rhs++;
-    rhs = trim(rhs);
-    if (*rhs == '\0' || strpbrk(rhs, " \t")) {
-        snprintf(err, errlen, "expected exactly one key after '%s'", s);
-        return -1;
+    if (strcasecmp(val, "none") == 0) {
+        m->entry[cec].key = KEYMAP_UNMAPPED;
+        m->entry[cec].no_repeat = false;
+        return 1;
     }
 
-    int cec = keymap_cec_code(s);
-    if (cec < 0) {
-        snprintf(err, errlen, "unknown CEC code '%s'", s);
-        return -1;
-    }
-    int key;
-    if (strcasecmp(rhs, "none") == 0) {
-        key = KEYMAP_UNMAPPED;
-    } else {
-        key = keymap_key_code(rhs);
-        if (key < 0) {
-            snprintf(err, errlen, "unknown key '%s'", rhs);
-            return -1;
+    bool no_repeat = m->entry[cec].no_repeat;
+    char *flags = strchr(val, ',');
+    if (flags) {
+        *flags++ = '\0';
+        for (char *tok = strtok(flags, ","); tok; tok = strtok(NULL, ",")) {
+            tok = trim(tok);
+            if (strcasecmp(tok, "no_repeat") == 0)
+                no_repeat = true;
+            else if (strcasecmp(tok, "repeat") == 0)
+                no_repeat = false;
+            else {
+                snprintf(err, errlen, "unknown flag '%s' (expected no_repeat or repeat)", tok);
+                return -1;
+            }
         }
     }
-    m->key[cec] = (uint16_t)key;
+    val = trim(val);
+    int key = keycode_from_name(val);
+    if (key < 0) {
+        snprintf(err, errlen, "unknown key name '%s'", val);
+        return -1;
+    }
+    m->entry[cec].key = (uint16_t)key;
+    m->entry[cec].no_repeat = no_repeat;
     return 1;
 }
 
-int keymap_load_file(keymap *m, const char *path, char *err, size_t errlen)
+size_t keymap_referenced_keys(const keymap *m, uint16_t *out, size_t max)
 {
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        snprintf(err, errlen, "%s: %s", path, strerror(errno));
-        return -1;
+    size_t n = 0;
+    for (int c = 0; c < KEYMAP_CEC_CODES; c++) {
+        uint16_t k = m->entry[c].key;
+        if (k == KEYMAP_UNMAPPED)
+            continue;
+        bool seen = false;
+        for (size_t i = 0; i < n && !seen; i++)
+            seen = out[i] == k;
+        if (!seen && n < max)
+            out[n++] = k;
     }
-    char line[256];
-    char lerr[192];
-    int bad = 0, lineno = 0;
-    while (fgets(line, sizeof(line), f)) {
-        lineno++;
-        if (keymap_parse_line(m, line, lerr, sizeof(lerr)) < 0) {
-            bad++;
-            snprintf(err, errlen, "%s:%d: %s", path, lineno, lerr);
+    return n;
+}
+
+void keymap_dump(const keymap *m, bool gamepad, FILE *f)
+{
+    fprintf(f, "# effective tacet-cec keymap (CEC code -> keyboard%s)\n",
+            gamepad ? " / gamepad" : "");
+    for (int c = 0; c < KEYMAP_CEC_CODES; c++) {
+        const keymap_entry *e = &m->entry[c];
+        gamepad_action g = keymap_gamepad(c);
+        if (e->key == KEYMAP_UNMAPPED && (!gamepad || g.kind == GP_NONE))
+            continue;
+        const char *cn = keymap_cec_name(c);
+        const char *kn = keycode_to_name(e->key);
+        fprintf(f, "0x%02X %-24s = ", c, cn ? cn : "?");
+        if (e->key == KEYMAP_UNMAPPED)
+            fprintf(f, "none");
+        else
+            fprintf(f, "%s%s", kn ? kn : "?", e->no_repeat ? ",no_repeat" : "");
+        if (gamepad && g.kind != GP_NONE) {
+            if (g.kind == GP_BUTTON)
+                fprintf(f, "  (gamepad %s)", keycode_to_name(g.value));
+            else
+                fprintf(f, "  (gamepad ABS_HAT0%c %+d)", g.kind == GP_HAT_X ? 'X' : 'Y', g.value);
         }
+        fputc('\n', f);
     }
-    fclose(f);
-    return bad;
 }
