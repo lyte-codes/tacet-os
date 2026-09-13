@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Tacet
+Description=Tacet boot splash: a wordmark fading in on black.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/tacet
+ScriptFile=/usr/share/plymouth/themes/tacet/tacet.script

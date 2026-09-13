@@ -1,0 +1,14 @@
+# bootc-image-builder configuration for flashable images (spec §8).
+#
+#   sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+#     -v ./image-builder.toml:/config.toml:ro -v ./output:/output \
+#     -v /var/lib/containers/storage:/var/lib/containers/storage \
+#     quay.io/centos-bootc/bootc-image-builder:latest \
+#     --type raw --rootfs ext4 --config /config.toml localhost/tacet:dev
+#
+# Users, kernel arguments and the root filesystem type come from the image
+# itself (sysusers.d, /usr/lib/bootc/kargs.d, /usr/lib/bootc/install), so the
+# disk config only sizes the partitions.
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "10 GiB"

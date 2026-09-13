@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tacet defaults for Kodi. Copied to ~/.kodi/userdata/ by tacet-session on
+  first launch only; the user's copy wins afterwards.
+
+  Most "phone home" switches in Kodi are ordinary settings (guisettings.xml,
+  seeded next to this file) or bundled add-ons (disabled via addon-manifest.xml
+  in the Containerfile). This file carries the remaining tunables.
+-->
+<advancedsettings version="1.0">
+  <!-- A TV box has no reason to log to disk aggressively. -->
+  <loglevel hide="false">0</loglevel>
+
+  <network>
+    <!-- Fail fast on a network that is not there rather than hanging the UI. -->
+    <curlclienttimeout>10</curlclienttimeout>
+    <curllowspeedtime>10</curllowspeedtime>
+  </network>
+
+  <videoscreen>
+    <!-- Let the display decide; gamescope owns the mode. -->
+    <blankdisplays>false</blankdisplays>
+  </videoscreen>
+</advancedsettings>

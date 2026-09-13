@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tacet seed for Kodi's settings. Partial on purpose: Kodi fills the rest with
+  its defaults. Copied to ~/.kodi/userdata/ on first launch only.
+  Every entry here either stops an unprompted network call or fixes the
+  appliance look (Estuary, no RSS ticker).
+-->
+<settings version="2">
+  <!-- Add-ons: never check for updates, never notify, no unknown sources. -->
+  <setting id="general.addonupdates">2</setting>
+  <setting id="general.addonnotifications">false</setting>
+  <setting id="addons.unknownsources">false</setting>
+
+  <!-- Estuary, no RSS feed (it fetches from kodi.tv by default). -->
+  <setting id="lookandfeel.skin">skin.estuary</setting>
+  <setting id="lookandfeel.enablerssfeeds">false</setting>
+
+  <!-- Nothing announces itself on the LAN unless the user turns it on. -->
+  <setting id="services.zeroconf">false</setting>
+  <setting id="services.upnp">false</setting>
+  <setting id="services.upnpserver">false</setting>
+  <setting id="services.upnprenderer">false</setting>
+  <setting id="services.webserver">false</setting>
+  <setting id="services.airplay">false</setting>
+  <setting id="services.esenabled">false</setting>
+
+  <!-- Hardware decode on. -->
+  <setting id="videoplayer.usevaapi">true</setting>
+  <setting id="videoplayer.prefervaapirender">true</setting>
+
+  <!-- Expert settings level so every option above is visible in the UI. -->
+  <setting id="general.settinglevel">3</setting>
+</settings>

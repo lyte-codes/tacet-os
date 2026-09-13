@@ -1,0 +1,30 @@
+# Tacet boot splash. Pure script theme: no image assets, so the initramfs
+# stays small and the theme needs no font beyond what plymouth bundles.
+
+Window.SetBackgroundTopColor(0.02, 0.02, 0.03);
+Window.SetBackgroundBottomColor(0.02, 0.02, 0.03);
+
+wordmark.image = Image.Text("tacet", 0.86, 0.86, 0.88, 1, "Sans 42");
+wordmark.sprite = Sprite(wordmark.image);
+wordmark.sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - wordmark.image.GetWidth() / 2);
+wordmark.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 - wordmark.image.GetHeight() / 2);
+wordmark.sprite.SetOpacity(0);
+
+frame = 0;
+
+fun refresh_callback() {
+  frame++;
+  wordmark.sprite.SetOpacity(Math.Min(1, frame / 20));
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# Boot messages and progress are intentionally not shown.
+fun message_callback(text) {}
+Plymouth.SetMessageFunction(message_callback);
+fun boot_progress_callback(duration, progress) {}
+Plymouth.SetBootProgressFunction(boot_progress_callback);
+
+fun quit_callback() {
+  wordmark.sprite.SetOpacity(1);
+}
+Plymouth.SetQuitFunction(quit_callback);

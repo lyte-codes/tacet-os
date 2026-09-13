@@ -1,0 +1,2 @@
+# Kernel arguments (spec §4.1). Applied by bootc at install and on upgrade.
+kargs = ["quiet", "loglevel=3", "rd.systemd.show_status=false", "splash", "mitigations=auto"]

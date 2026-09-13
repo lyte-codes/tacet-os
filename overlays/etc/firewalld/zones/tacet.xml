@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tacet default zone (spec §4.8): inbound deny-all except mDNS for Jellyfin
+     discovery. SSH is off by default; Settings adds the `ssh` service to this
+     zone when the user enables it. Outbound is unrestricted in v1. -->
+<zone target="DROP">
+  <short>Tacet</short>
+  <description>Tacet appliance zone: drop all inbound except mDNS.</description>
+  <service name="mdns"/>
+</zone>

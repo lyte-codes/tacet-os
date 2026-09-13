@@ -1,0 +1,5 @@
+ignored:
+  - DL3041   # `dnf clean all` runs once in the removal step, not after every install
+  - DL3040
+  - DL3033   # yum rules do not apply
+  - DL3059   # consecutive RUNs are deliberate for readable layers
