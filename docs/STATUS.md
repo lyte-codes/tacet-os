@@ -30,9 +30,9 @@ ticked without it.
 
 ## Known gaps to close before calling M0 done
 
-- Package names come from memory of Fedora 44 / RPM Fusion; the first CI build
-  is the proof. Likely suspects: `google-noto-sans-cjk-vf-fonts`,
-  `plymouth-plugin-script`, `kodi-inputstream-adaptive`.
+- Every package name in the Containerfile resolved against Fedora 44 + RPM
+  Fusion in CI except `blocky`, which is not packaged; tacet-dns (M3) has to
+  source it.
 - Kodi under gamescope's XWayland is the documented path; Kodi's GBM backend
   is the fallback if HDR or mode switching misbehaves.
 - The Jellyfin Kodi add-on is not bundled yet: it needs a pinned download

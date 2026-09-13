@@ -79,8 +79,6 @@ RUN /tmp/lockfile/install-packages.sh /tmp/lockfile/packages.lock \
     iw \
     # category: firewalld
     firewalld \
-    # category: blocky
-    blocky \
     # category: chrony
     chrony \
     # category: fonts

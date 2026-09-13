@@ -73,10 +73,6 @@ once the weekly job has run, and in the SBOM attached to each release.
 
 - `firewalld`
 
-### blocky
-
-- `blocky`
-
 ### chrony
 
 - `chrony`
