@@ -1,0 +1,120 @@
+# Release: on a v<FEDORA>.<MAJOR>.<PATCH>[-pre] tag — build, test, embed SBOM,
+# sign, push every tag from spec §7.2, build and attach flashable images.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  IMAGE_NAME: ${{ vars.TACET_IMAGE || format('ghcr.io/{0}/tacet', github.repository_owner) }}
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write   # cosign keyless
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag matches VERSION
+        id: ver
+        run: |
+          python3 ci/version.py check-tag "${GITHUB_REF_NAME}"
+          v=$(tr -d '[:space:]' < VERSION)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if python3 ci/version.py is-prerelease "$v"; then
+            echo "channel=testing" >> "$GITHUB_OUTPUT"; echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"; echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Lint and test
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q shellcheck qemu-system-x86 ovmf
+          make lint test
+      - name: Build image
+        run: PODMAN="sudo podman" ci/build.sh localhost/tacet:release
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: localhost/tacet:release
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+        env:
+          SYFT_CONTAINER_RUNTIME: podman
+      - name: Embed SBOM at /usr/share/tacet/sbom.json
+        run: |
+          cat > Containerfile.sbom <<'CF'
+          FROM localhost/tacet:release
+          COPY sbom.spdx.json /usr/share/tacet/sbom.json
+          CF
+          sudo podman build -t localhost/tacet:final -f Containerfile.sbom .
+      - name: Build raw disk and boot test
+        run: |
+          sudo ci/make-disk.sh localhost/tacet:final "$PWD/output" raw
+          sudo chmod 666 /dev/kvm || true
+          ci/boot-test.sh output/image/disk.raw 420
+      - name: Push image tags
+        id: push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          tags=$(python3 ci/version.py tags "${{ steps.ver.outputs.version }}" --channel "${{ steps.ver.outputs.channel }}" --date "${{ steps.ver.outputs.date }}")
+          for t in $tags; do
+            sudo podman tag localhost/tacet:final "$IMAGE_NAME:$t"
+            sudo podman push "$IMAGE_NAME:$t"
+          done
+          digest=$(sudo podman image inspect "localhost/tacet:final" --format '{{.Digest}}')
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign image (keyless)
+        run: |
+          for t in ${{ steps.push.outputs.tags }}; do
+            cosign sign --yes "$IMAGE_NAME:$t"
+          done
+      - name: Package flashable image
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          sudo chown "$USER" output/image/disk.raw
+          mv output/image/disk.raw "tacet-${v}-x86_64.img"
+          xz -T0 -6 "tacet-${v}-x86_64.img"
+          sha256sum "tacet-${v}-x86_64.img.xz" > SHA256SUMS
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+      - name: GPG-sign checksums (if a key is configured)
+        if: ${{ env.GPG_KEY != '' }}
+        env:
+          GPG_KEY: ${{ secrets.TACET_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.TACET_GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_KEY" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+              --armor --detach-sign SHA256SUMS
+      - name: Changelog for this release
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Tacet ${{ steps.ver.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ steps.ver.outputs.prerelease }}
+          files: |
+            tacet-*.img.xz
+            SHA256SUMS
+            SHA256SUMS.sigstore.json
+            SHA256SUMS.asc
+            sbom.spdx.json

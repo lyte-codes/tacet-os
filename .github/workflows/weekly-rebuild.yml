@@ -1,0 +1,91 @@
+# Weekly security rebuild (spec §7.4).
+#
+# 1. Resolve the base image digest and rebuild with no package pins.
+# 2. Diff the resulting package set against ci/lockfile/packages.lock.
+# 3. Packages changed  -> bump PATCH, update lock + digest + CHANGELOG,
+#    commit and push a v-tag; release.yml does the rest.
+#    Nothing changed   -> commit the digest if it moved; no version, no tag.
+name: weekly-rebuild
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Resolve base digest
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q skopeo
+          base=$(grep -oP '^ARG BASE_IMAGE=\K\S+' Containerfile)
+          ci/lockfile/resolve-base-digest.sh "$base" > ci/lockfile/base-digest
+          cat ci/lockfile/base-digest
+      - name: Unpinned build
+        run: |
+          [ -f ci/lockfile/packages.lock ] && mv ci/lockfile/packages.lock /tmp/packages.lock.old
+          PODMAN="sudo podman" ci/build.sh localhost/tacet:weekly
+      - name: Record new lock and diff
+        id: diff
+        run: |
+          sudo ci/lockfile/make-lock.sh localhost/tacet:weekly ci/lockfile/packages.lock
+          sudo chown "$USER" ci/lockfile/packages.lock
+          if [ -f /tmp/packages.lock.old ] && diff -u /tmp/packages.lock.old ci/lockfile/packages.lock > lock.diff; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            [ -f lock.diff ] && cat lock.diff || echo "(first lock)"
+          fi
+      - name: Bump PATCH and tag
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          old=$(tr -d '[:space:]' < VERSION)
+          new=$(python3 ci/version.py bump patch "$old")
+          echo "$new" > VERSION
+          {
+            echo "## [$new] - $(date -u +%Y-%m-%d)"
+            echo
+            echo "### Security"
+            echo "- Weekly rebuild on refreshed Fedora packages (no Tacet behaviour change)."
+            if [ -s lock.diff ]; then
+              echo
+              echo '```diff'
+              grep -E '^[-+][^-+]' lock.diff | head -n 200
+              echo '```'
+            fi
+            echo
+          } > /tmp/entry.md
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("CHANGELOG.md"); s = p.read_text(); e = Path("/tmp/entry.md").read_text()
+          marker = "## [Unreleased]"
+          i = s.index(marker) + len(marker)
+          j = s.find("\n## ", i)
+          p.write_text(s[:i] + "\n\n" + e + s[j+1:] if j != -1 else s + "\n" + e)
+          PY
+          git config user.name "tacet-ci"
+          git config user.email "ci@tacet.invalid"
+          git add VERSION CHANGELOG.md ci/lockfile/packages.lock ci/lockfile/base-digest
+          git commit -m "chore(release): $new (weekly security rebuild)"
+          git tag "v$new"
+          git push origin main "v$new"
+      - name: Commit digest only
+        if: steps.diff.outputs.changed == 'false'
+        run: |
+          git config user.name "tacet-ci"
+          git config user.email "ci@tacet.invalid"
+          git add ci/lockfile/base-digest
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -m "chore(lockfile): refresh base digest (no package changes)"
+          git push origin main

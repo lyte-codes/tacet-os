@@ -1,0 +1,102 @@
+# CI: lint, component tests, image build, disk build, QEMU boot test.
+# Runs on every push and PR. Pushes of `main` also publish the image as
+# `edge` and `sha-<short>` (DECISION: spec §7.2 lists tags for releases only;
+# main builds need a name for testing without pretending to be a release).
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ${{ vars.TACET_IMAGE || format('ghcr.io/{0}/tacet', github.repository_owner) }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install linters
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q shellcheck
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Containerfile
+      - name: Lint shell, python, systemd units
+        run: make lint
+      - name: docs/PACKAGES.md is current
+        run: python3 ci/gen-packages-md.py --check
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Component and tooling tests
+        run: make test
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af || true
+          df -h /
+      - id: meta
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Build image
+        run: PODMAN="sudo podman" ci/build.sh localhost/tacet:ci
+      - name: Image summary
+        run: |
+          sudo podman image inspect localhost/tacet:ci --format 'size={{.Size}} layers={{len .RootFS.Layers}}'
+          sudo podman run --rm localhost/tacet:ci rpm -qa | sort > rpm-qa.txt
+          wc -l rpm-qa.txt
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: localhost/tacet:ci
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+        env:
+          SYFT_CONTAINER_RUNTIME: podman
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-metadata
+          path: |
+            rpm-qa.txt
+            sbom.spdx.json
+      - name: Build raw disk
+        run: sudo ci/make-disk.sh localhost/tacet:ci "$PWD/output" raw
+      - name: Boot test (QEMU)
+        run: |
+          sudo apt-get install -y -q qemu-system-x86 ovmf
+          sudo chmod 666 /dev/kvm || true
+          ci/boot-test.sh output/image/disk.raw 420
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-test-serial
+          path: serial.log
+          if-no-files-found: ignore
+      - name: Push edge image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          short=$(git rev-parse --short=7 HEAD)
+          for t in edge "sha-$short"; do
+            sudo podman tag localhost/tacet:ci "$IMAGE_NAME:$t"
+            sudo podman push "$IMAGE_NAME:$t"
+          done
