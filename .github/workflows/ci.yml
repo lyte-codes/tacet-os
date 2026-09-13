@@ -83,7 +83,9 @@ jobs:
             rpm-qa.txt
             sbom.spdx.json
       - name: Build raw disk
-        run: sudo ci/make-disk.sh localhost/tacet:ci "$PWD/output" raw
+        run: |
+          sudo ci/make-disk.sh localhost/tacet:ci "$PWD/output" raw
+          sudo chown -R "$USER" output
       - name: Boot test (QEMU)
         run: |
           sudo apt-get install -y -q qemu-system-x86 ovmf

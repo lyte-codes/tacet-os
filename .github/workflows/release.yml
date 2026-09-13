@@ -66,6 +66,7 @@ jobs:
       - name: Build raw disk and boot test
         run: |
           sudo ci/make-disk.sh localhost/tacet:final "$PWD/output" raw
+          sudo chown -R "$USER" output
           sudo chmod 666 /dev/kvm || true
           ci/boot-test.sh output/image/disk.raw 420
       - name: Push image tags
@@ -89,7 +90,6 @@ jobs:
       - name: Package flashable image
         run: |
           v="${{ steps.ver.outputs.version }}"
-          sudo chown "$USER" output/image/disk.raw
           mv output/image/disk.raw "tacet-${v}-x86_64.img"
           xz -T0 -6 "tacet-${v}-x86_64.img"
           sha256sum "tacet-${v}-x86_64.img.xz" > SHA256SUMS
